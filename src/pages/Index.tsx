@@ -709,6 +709,30 @@ export default function Index() {
       birth_date: currentUser?.birth_date || ''
     });
     const [usernameError, setUsernameError] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+      if (!validTypes.includes(file.type)) {
+        toast({ title: 'Ошибка', description: 'Только PNG и JPG файлы', variant: 'destructive' });
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ title: 'Ошибка', description: 'Максимальный размер 5MB', variant: 'destructive' });
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setSettingsForm({ ...settingsForm, avatar_url: base64 });
+      };
+    };
 
     const handleUpdateProfile = async () => {
       if (settingsForm.username && !/^[a-zA-Z0-9_]{3,20}$/.test(settingsForm.username)) {
@@ -778,16 +802,44 @@ export default function Index() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">URL аватара</label>
-              <Input
-                placeholder="https://example.com/avatar.jpg"
-                value={settingsForm.avatar_url}
-                onChange={(e) => setSettingsForm({ ...settingsForm, avatar_url: e.target.value })}
-                className="bg-muted/50 border-border"
+              <label className="text-sm font-medium mb-2 block">Аватар</label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-border hover:bg-muted/50"
+                >
+                  <Icon name="Upload" size={16} className="mr-2" />
+                  Загрузить файл
+                </Button>
+                <Input
+                  placeholder="или вставь URL"
+                  value={settingsForm.avatar_url.startsWith('data:') ? '' : settingsForm.avatar_url}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, avatar_url: e.target.value })}
+                  className="bg-muted/50 border-border flex-1"
+                />
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg"
+                onChange={handleFileUpload}
+                className="hidden"
               />
               {settingsForm.avatar_url && (
-                <div className="mt-3">
+                <div className="mt-3 flex items-center gap-3">
                   <img src={settingsForm.avatar_url} alt="Preview" className="w-20 h-20 rounded-full object-cover border-2 border-border" />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSettingsForm({ ...settingsForm, avatar_url: '' })}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Icon name="Trash2" size={16} className="mr-1" />
+                    Удалить
+                  </Button>
                 </div>
               )}
             </div>
