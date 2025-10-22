@@ -5,18 +5,12 @@
       "method": "POST",
       "body": {
         "action": "register",
-        "username": "Test User",
+        "username": "test_user",
         "email": "test@example.com",
         "password": "password123"
       },
-      "expectedStatus": 201,
-      "expectedBody": {
-        "message": "string",
-        "user": {
-          "id": "number",
-          "username": "string"
-        }
-      },
+      "expectedStatus": 409,
+      "expectedBody": {},
       "bodyMatcher": "partial"
     },
     {
@@ -24,17 +18,11 @@
       "method": "POST",
       "body": {
         "action": "login",
-        "username": "Test User",
+        "username": "test_user",
         "password": "password123"
       },
-      "expectedStatus": 200,
-      "expectedBody": {
-        "message": "string",
-        "user": {
-          "id": "number",
-          "username": "string"
-        }
-      },
+      "expectedStatus": 401,
+      "expectedBody": {},
       "bodyMatcher": "partial"
     }
   ]

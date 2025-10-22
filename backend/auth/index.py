@@ -9,6 +9,7 @@ import json
 import os
 import hashlib
 import psycopg2
+import re
 from psycopg2.extras import RealDictCursor
 from typing import Dict, Any
 
@@ -70,11 +71,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'isBase64Encoded': False
                 }
             
-            if len(username) < 3:
+            if not re.match(r'^[a-zA-Z0-9_]{3,20}$', username):
                 return {
                     'statusCode': 400,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Имя должно быть минимум 3 символа'}),
+                    'body': json.dumps({'error': 'Юзернейм может содержать только английские буквы, цифры и _ (3-20 символов)'}),
                     'isBase64Encoded': False
                 }
             

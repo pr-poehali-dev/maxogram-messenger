@@ -1,0 +1,33 @@
+{
+  "tests": [
+    {
+      "name": "Get user profile",
+      "method": "POST",
+      "body": {
+        "action": "get_profile",
+        "user_id": 1
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "user": {}
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Update profile with avatar",
+      "method": "POST",
+      "body": {
+        "action": "update_profile",
+        "user_id": 1,
+        "avatar_url": "https://example.com/avatar.jpg",
+        "birth_date": "1990-01-01"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "message": "string",
+        "user": {}
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

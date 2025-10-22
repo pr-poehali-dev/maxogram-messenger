@@ -10,6 +10,7 @@ import Icon from '@/components/ui/icon';
 
 const API_AUTH = 'https://functions.poehali.dev/7d91b22d-765f-4e87-a2d6-5521016e62af';
 const API_MESSAGES = 'https://functions.poehali.dev/65694831-a2ba-48f5-be3b-29ec9666d002';
+const API_PROFILE = 'https://functions.poehali.dev/725bd01e-9bdf-451d-ab23-bf01e7c91a91';
 
 interface User {
   id: number;
@@ -18,6 +19,9 @@ interface User {
   online: boolean;
   email?: string;
   phone?: string;
+  avatar_url?: string;
+  birth_date?: string;
+  username_last_changed?: string;
 }
 
 interface Chat {
@@ -44,7 +48,7 @@ interface Message {
   sender_avatar: string;
 }
 
-type Screen = 'auth' | 'register' | 'chats' | 'chat' | 'contacts' | 'groups' | 'profile' | 'search';
+type Screen = 'auth' | 'register' | 'chats' | 'chat' | 'contacts' | 'groups' | 'profile' | 'search' | 'settings';
 
 export default function Index() {
   const [screen, setScreen] = useState<Screen>('auth');
@@ -112,6 +116,11 @@ export default function Index() {
   const handleRegister = async () => {
     if (!authForm.username || !authForm.password) {
       toast({ title: 'Ошибка', description: 'Заполните все поля', variant: 'destructive' });
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(authForm.username)) {
+      toast({ title: 'Ошибка', description: 'Юзернейм: только английские буквы, цифры и _ (3-20 символов)', variant: 'destructive' });
       return;
     }
 
@@ -652,29 +661,158 @@ export default function Index() {
     <div className="space-y-6 animate-fade-in">
       <Card className="p-6 border-border/50">
         <div className="flex flex-col items-center text-center">
-          <Avatar className="w-24 h-24 border-4 border-primary/20 mb-4">
-            <AvatarFallback className="gradient-purple-cyan text-white text-3xl font-bold">
-              {currentUser?.avatar_initials}
-            </AvatarFallback>
-          </Avatar>
-          <h2 className="text-2xl font-bold mb-1">{currentUser?.username}</h2>
-          <p className="text-muted-foreground mb-4">{currentUser?.email || currentUser?.phone || 'Не указано'}</p>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              setCurrentUser(null);
-              setScreen('auth');
-              toast({ title: 'Вы вышли из аккаунта' });
-            }}
-            className="border-primary/50 hover:bg-primary/10"
-          >
-            <Icon name="LogOut" size={16} className="mr-2" />
-            Выйти
-          </Button>
+          {currentUser?.avatar_url ? (
+            <img src={currentUser.avatar_url} alt="Avatar" className="w-24 h-24 rounded-full border-4 border-primary/20 mb-4 object-cover" />
+          ) : (
+            <Avatar className="w-24 h-24 border-4 border-primary/20 mb-4">
+              <AvatarFallback className="gradient-purple-cyan text-white text-3xl font-bold">
+                {currentUser?.avatar_initials}
+              </AvatarFallback>
+            </Avatar>
+          )}
+          <h2 className="text-2xl font-bold mb-1">@{currentUser?.username}</h2>
+          <p className="text-muted-foreground mb-2">{currentUser?.email || currentUser?.phone || 'Не указано'}</p>
+          {currentUser?.birth_date && (
+            <p className="text-sm text-muted-foreground mb-4">🎂 {new Date(currentUser.birth_date).toLocaleDateString('ru-RU')}</p>
+          )}
+          <div className="flex gap-2 mt-4">
+            <Button 
+              variant="outline"
+              onClick={() => setScreen('settings')}
+              className="border-primary/50 hover:bg-primary/10"
+            >
+              <Icon name="Settings" size={16} className="mr-2" />
+              Настройки
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setCurrentUser(null);
+                setScreen('auth');
+                toast({ title: 'Вы вышли из аккаунта' });
+              }}
+              className="border-primary/50 hover:bg-primary/10"
+            >
+              <Icon name="LogOut" size={16} className="mr-2" />
+              Выйти
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
   );
+
+  const SettingsScreen = () => {
+    const [settingsForm, setSettingsForm] = useState({
+      username: currentUser?.username || '',
+      avatar_url: currentUser?.avatar_url || '',
+      birth_date: currentUser?.birth_date || ''
+    });
+    const [usernameError, setUsernameError] = useState('');
+
+    const handleUpdateProfile = async () => {
+      if (settingsForm.username && !/^[a-zA-Z0-9_]{3,20}$/.test(settingsForm.username)) {
+        setUsernameError('Только английские буквы, цифры и _ (3-20 символов)');
+        return;
+      }
+      setUsernameError('');
+
+      try {
+        const response = await fetch(API_PROFILE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update_profile',
+            user_id: currentUser?.id,
+            new_username: settingsForm.username !== currentUser?.username ? settingsForm.username : undefined,
+            avatar_url: settingsForm.avatar_url,
+            birth_date: settingsForm.birth_date
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          setCurrentUser(data.user);
+          toast({ title: 'Успешно', description: data.message });
+          setScreen('profile');
+        } else {
+          toast({ title: 'Ошибка', description: data.error, variant: 'destructive' });
+        }
+      } catch (error) {
+        toast({ title: 'Ошибка', description: 'Не удалось обновить профиль', variant: 'destructive' });
+      }
+    };
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Card className="p-6 border-border/50">
+          <div className="flex items-center gap-4 mb-6">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => setScreen('profile')}
+              className="hover:bg-muted"
+            >
+              <Icon name="ArrowLeft" size={24} />
+            </Button>
+            <h2 className="text-2xl font-bold">Настройки профиля</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Юзернейм</label>
+              <Input
+                placeholder="username"
+                value={settingsForm.username}
+                onChange={(e) => setSettingsForm({ ...settingsForm, username: e.target.value })}
+                className="bg-muted/50 border-border"
+              />
+              {usernameError && <p className="text-xs text-destructive mt-1">{usernameError}</p>}
+              {currentUser?.username_last_changed && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Последнее изменение: {new Date(currentUser.username_last_changed).toLocaleDateString('ru-RU')}
+                  {' '}(можно менять раз в 3 дня)
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">URL аватара</label>
+              <Input
+                placeholder="https://example.com/avatar.jpg"
+                value={settingsForm.avatar_url}
+                onChange={(e) => setSettingsForm({ ...settingsForm, avatar_url: e.target.value })}
+                className="bg-muted/50 border-border"
+              />
+              {settingsForm.avatar_url && (
+                <div className="mt-3">
+                  <img src={settingsForm.avatar_url} alt="Preview" className="w-20 h-20 rounded-full object-cover border-2 border-border" />
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">День рождения</label>
+              <Input
+                type="date"
+                value={settingsForm.birth_date}
+                onChange={(e) => setSettingsForm({ ...settingsForm, birth_date: e.target.value })}
+                className="bg-muted/50 border-border"
+              />
+            </div>
+
+            <Button
+              onClick={handleUpdateProfile}
+              className="w-full gradient-purple-cyan hover:opacity-90 text-white"
+            >
+              Сохранить изменения
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  };
 
   const authScreen = useMemo(() => <AuthScreen />, [authForm, showPassword]);
   const registerScreen = useMemo(() => <RegisterScreen />, [authForm, showPassword]);
@@ -684,6 +822,7 @@ export default function Index() {
     if (screen === 'auth') return authScreen;
     if (screen === 'register') return registerScreen;
     if (screen === 'chat') return chatScreen;
+    if (screen === 'settings') return <SettingsScreen />;
     
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
