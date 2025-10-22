@@ -1,0 +1,36 @@
+{
+  "tests": [
+    {
+      "name": "Send text message",
+      "method": "POST",
+      "body": {
+        "action": "send",
+        "sender_id": 1,
+        "receiver_id": 2,
+        "message_text": "Hello, world!"
+      },
+      "expectedStatus": 201,
+      "expectedBody": {
+        "status": "string",
+        "message": {
+          "id": "number",
+          "message_text": "string"
+        }
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get user chats",
+      "method": "POST",
+      "body": {
+        "action": "get_chats",
+        "user_id": 1
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "chats": "array"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

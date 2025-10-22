@@ -1,57 +1,278 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
 import Icon from '@/components/ui/icon';
+
+const API_AUTH = 'https://functions.poehali.dev/7d91b22d-765f-4e87-a2d6-5521016e62af';
+const API_MESSAGES = 'https://functions.poehali.dev/65694831-a2ba-48f5-be3b-29ec9666d002';
 
 interface User {
   id: number;
-  name: string;
-  avatar: string;
+  username: string;
+  avatar_initials: string;
   online: boolean;
-  lastMessage?: string;
-  time?: string;
-  unread?: number;
+  email?: string;
+  phone?: string;
+}
+
+interface Chat {
+  id: number;
+  username: string;
+  avatar_initials: string;
+  online: boolean;
+  last_message: string;
+  last_message_is_voice: boolean;
+  last_message_time: string;
+  unread_count: number;
 }
 
 interface Message {
   id: number;
-  userId: number;
-  text: string;
-  time: string;
-  isMine: boolean;
+  sender_id: number;
+  receiver_id: number;
+  message_text?: string;
+  voice_url?: string;
+  voice_duration?: number;
+  is_voice: boolean;
+  created_at: string;
+  sender_name: string;
+  sender_avatar: string;
 }
 
-type Screen = 'auth' | 'chats' | 'chat' | 'contacts' | 'groups' | 'profile' | 'search';
+type Screen = 'auth' | 'register' | 'chats' | 'chat' | 'contacts' | 'groups' | 'profile' | 'search';
 
 export default function Index() {
   const [screen, setScreen] = useState<Screen>('auth');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [messageText, setMessageText] = useState('');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  
+  const [authForm, setAuthForm] = useState({ username: '', email: '', password: '' });
+  const { toast } = useToast();
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const users: User[] = [
-    { id: 1, name: 'Анна Иванова', avatar: 'АИ', online: true, lastMessage: 'Привет! Как дела?', time: '12:30', unread: 2 },
-    { id: 2, name: 'Дмитрий Петров', avatar: 'ДП', online: true, lastMessage: 'Отправил файлы', time: '11:45', unread: 0 },
-    { id: 3, name: 'Мария Смирнова', avatar: 'МС', online: false, lastMessage: 'До встречи завтра!', time: 'Вчера', unread: 0 },
-    { id: 4, name: 'Александр Козлов', avatar: 'АК', online: true, lastMessage: 'Созвон в 15:00', time: '10:20', unread: 1 },
-  ];
+  useEffect(() => {
+    if (currentUser && screen === 'chats') {
+      loadChats();
+    }
+  }, [currentUser, screen]);
 
-  const groups = [
-    { id: 1, name: 'Рабочий чат', avatar: '💼', members: 12, lastMessage: 'Новая задача в бэклоге', time: '14:00' },
-    { id: 2, name: 'Друзья', avatar: '🎉', members: 8, lastMessage: 'Кто за выходные?', time: '13:30' },
-    { id: 3, name: 'Семья', avatar: '👨‍👩‍👧‍👦', members: 5, lastMessage: 'Фото: IMG_2435.jpg', time: 'Вчера' },
-  ];
+  useEffect(() => {
+    if (currentUser && selectedUserId && screen === 'chat') {
+      loadMessages(selectedUserId);
+    }
+  }, [currentUser, selectedUserId, screen]);
 
-  const messages: Message[] = [
-    { id: 1, userId: 1, text: 'Привет! Как дела?', time: '12:28', isMine: false },
-    { id: 2, userId: 1, text: 'Всё отлично! Работаю над проектом', time: '12:29', isMine: true },
-    { id: 3, userId: 1, text: 'Круто! Какой проект?', time: '12:30', isMine: false },
-    { id: 4, userId: 1, text: 'Новый мессенджер, очень интересно', time: '12:31', isMine: true },
-  ];
+  const loadChats = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const response = await fetch(API_MESSAGES, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_chats', user_id: currentUser.id })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setChats(data.chats || []);
+      }
+    } catch (error) {
+      console.error('Error loading chats:', error);
+    }
+  };
+
+  const loadMessages = async (otherUserId: number) => {
+    if (!currentUser) return;
+    
+    try {
+      const response = await fetch(`${API_MESSAGES}?user_id=${currentUser.id}&other_user_id=${otherUserId}`);
+      const data = await response.json();
+      if (response.ok) {
+        setMessages(data.messages || []);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!authForm.username || !authForm.password) {
+      toast({ title: 'Ошибка', description: 'Заполните все поля', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const response = await fetch(API_AUTH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'register',
+          username: authForm.username,
+          email: authForm.email,
+          password: authForm.password
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setCurrentUser(data.user);
+        toast({ title: 'Успешно', description: data.message });
+        setScreen('chats');
+      } else {
+        toast({ title: 'Ошибка', description: data.error, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Ошибка', description: 'Не удалось зарегистрироваться', variant: 'destructive' });
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!authForm.username || !authForm.password) {
+      toast({ title: 'Ошибка', description: 'Заполните все поля', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const response = await fetch(API_AUTH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'login',
+          username: authForm.username,
+          password: authForm.password
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setCurrentUser(data.user);
+        toast({ title: 'Успешно', description: data.message });
+        setScreen('chats');
+      } else {
+        toast({ title: 'Ошибка', description: data.error, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Ошибка', description: 'Не удалось войти', variant: 'destructive' });
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!currentUser || !selectedUserId || !messageText.trim()) return;
+
+    try {
+      const response = await fetch(API_MESSAGES, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send',
+          sender_id: currentUser.id,
+          receiver_id: selectedUserId,
+          message_text: messageText,
+          is_voice: false
+        })
+      });
+
+      if (response.ok) {
+        setMessageText('');
+        loadMessages(selectedUserId);
+        loadChats();
+      }
+    } catch (error) {
+      toast({ title: 'Ошибка', description: 'Не удалось отправить сообщение', variant: 'destructive' });
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await sendVoiceMessage(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (error) {
+      toast({ title: 'Ошибка', description: 'Не удалось получить доступ к микрофону', variant: 'destructive' });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+    }
+  };
+
+  const sendVoiceMessage = async (audioBlob: Blob) => {
+    if (!currentUser || !selectedUserId) return;
+
+    const reader = new FileReader();
+    reader.readAsDataURL(audioBlob);
+    reader.onloadend = async () => {
+      const base64Audio = reader.result as string;
+      
+      try {
+        const response = await fetch(API_MESSAGES, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'send',
+            sender_id: currentUser.id,
+            receiver_id: selectedUserId,
+            voice_url: base64Audio,
+            voice_duration: recordingTime,
+            is_voice: true
+          })
+        });
+
+        if (response.ok) {
+          loadMessages(selectedUserId);
+          loadChats();
+          toast({ title: 'Голосовое сообщение отправлено' });
+        }
+      } catch (error) {
+        toast({ title: 'Ошибка', description: 'Не удалось отправить голосовое', variant: 'destructive' });
+      }
+    };
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  };
 
   const AuthScreen = () => (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-muted to-background">
@@ -65,11 +286,22 @@ export default function Index() {
         </div>
         
         <div className="space-y-4">
-          <Input placeholder="Введите телефон или email" className="h-12 bg-muted/50 border-border" />
-          <Input placeholder="Пароль" type="password" className="h-12 bg-muted/50 border-border" />
+          <Input 
+            placeholder="Имя пользователя" 
+            className="h-12 bg-muted/50 border-border"
+            value={authForm.username}
+            onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })}
+          />
+          <Input 
+            placeholder="Пароль" 
+            type="password" 
+            className="h-12 bg-muted/50 border-border"
+            value={authForm.password}
+            onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+          />
           
           <Button 
-            onClick={() => setScreen('chats')} 
+            onClick={handleLogin}
             className="w-full h-12 gradient-purple-cyan hover:opacity-90 transition-all duration-300 hover:scale-[1.02] font-semibold text-white"
           >
             Войти
@@ -77,6 +309,7 @@ export default function Index() {
           
           <Button 
             variant="outline" 
+            onClick={() => setScreen('register')}
             className="w-full h-12 border-primary/50 hover:bg-primary/10"
           >
             Создать аккаунт
@@ -86,51 +319,112 @@ export default function Index() {
     </div>
   );
 
+  const RegisterScreen = () => (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-muted to-background">
+      <Card className="w-full max-w-md p-8 bg-card/80 backdrop-blur-xl border-border/50 shadow-2xl animate-scale-in">
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full gradient-purple-cyan flex items-center justify-center">
+            <Icon name="UserPlus" size={40} className="text-white" />
+          </div>
+          <h1 className="text-3xl font-bold mb-2">Регистрация</h1>
+          <p className="text-muted-foreground">Создайте новый аккаунт</p>
+        </div>
+        
+        <div className="space-y-4">
+          <Input 
+            placeholder="Имя пользователя" 
+            className="h-12 bg-muted/50 border-border"
+            value={authForm.username}
+            onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })}
+          />
+          <Input 
+            placeholder="Email (необязательно)" 
+            type="email"
+            className="h-12 bg-muted/50 border-border"
+            value={authForm.email}
+            onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+          />
+          <Input 
+            placeholder="Пароль" 
+            type="password" 
+            className="h-12 bg-muted/50 border-border"
+            value={authForm.password}
+            onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+          />
+          
+          <Button 
+            onClick={handleRegister}
+            className="w-full h-12 gradient-purple-cyan hover:opacity-90 transition-all duration-300 hover:scale-[1.02] font-semibold text-white"
+          >
+            Зарегистрироваться
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            onClick={() => setScreen('auth')}
+            className="w-full h-12 border-primary/50 hover:bg-primary/10"
+          >
+            Уже есть аккаунт
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+
   const ChatsList = () => (
     <div className="space-y-2 animate-fade-in">
-      {users.map((user) => (
-        <Card 
-          key={user.id}
-          onClick={() => {
-            setSelectedUserId(user.id);
-            setScreen('chat');
-          }}
-          className="p-4 hover:bg-muted/50 cursor-pointer transition-all duration-300 hover:scale-[1.01] hover:shadow-lg border-border/50"
-        >
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Avatar className="w-14 h-14 border-2 border-primary/20">
-                <AvatarFallback className="gradient-purple-cyan text-white font-semibold">
-                  {user.avatar}
-                </AvatarFallback>
-              </Avatar>
-              {user.online && (
-                <div className="absolute bottom-0 right-0 w-4 h-4 bg-secondary rounded-full border-2 border-card animate-pulse" />
+      {chats.length === 0 ? (
+        <div className="text-center py-12">
+          <Icon name="MessageCircle" size={48} className="mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Нет чатов. Найдите пользователей в поиске!</p>
+        </div>
+      ) : (
+        chats.map((chat) => (
+          <Card 
+            key={chat.id}
+            onClick={() => {
+              setSelectedUserId(chat.id);
+              setScreen('chat');
+            }}
+            className="p-4 hover:bg-muted/50 cursor-pointer transition-all duration-300 hover:scale-[1.01] hover:shadow-lg border-border/50"
+          >
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Avatar className="w-14 h-14 border-2 border-primary/20">
+                  <AvatarFallback className="gradient-purple-cyan text-white font-semibold">
+                    {chat.avatar_initials}
+                  </AvatarFallback>
+                </Avatar>
+                {chat.online && (
+                  <div className="absolute bottom-0 right-0 w-4 h-4 bg-secondary rounded-full border-2 border-card animate-pulse" />
+                )}
+              </div>
+              
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center mb-1">
+                  <h3 className="font-semibold truncate">{chat.username}</h3>
+                  <span className="text-xs text-muted-foreground">{formatTime(chat.last_message_time)}</span>
+                </div>
+                <p className="text-sm text-muted-foreground truncate">
+                  {chat.last_message_is_voice ? '🎤 Голосовое сообщение' : chat.last_message}
+                </p>
+              </div>
+              
+              {chat.unread_count > 0 && (
+                <Badge className="gradient-purple-cyan text-white border-0">
+                  {chat.unread_count}
+                </Badge>
               )}
             </div>
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-center mb-1">
-                <h3 className="font-semibold truncate">{user.name}</h3>
-                <span className="text-xs text-muted-foreground">{user.time}</span>
-              </div>
-              <p className="text-sm text-muted-foreground truncate">{user.lastMessage}</p>
-            </div>
-            
-            {user.unread! > 0 && (
-              <Badge className="gradient-purple-cyan text-white border-0">
-                {user.unread}
-              </Badge>
-            )}
-          </div>
-        </Card>
-      ))}
+          </Card>
+        ))
+      )}
     </div>
   );
 
   const ChatScreen = () => {
-    const user = users.find(u => u.id === selectedUserId);
-    if (!user) return null;
+    const selectedChat = chats.find(c => c.id === selectedUserId);
+    if (!selectedChat || !currentUser) return null;
 
     return (
       <div className="flex flex-col h-screen animate-slide-in-right">
@@ -147,17 +441,17 @@ export default function Index() {
           <div className="relative">
             <Avatar className="w-12 h-12 border-2 border-primary/20">
               <AvatarFallback className="gradient-purple-cyan text-white font-semibold">
-                {user.avatar}
+                {selectedChat.avatar_initials}
               </AvatarFallback>
             </Avatar>
-            {user.online && (
+            {selectedChat.online && (
               <div className="absolute bottom-0 right-0 w-3 h-3 bg-secondary rounded-full border-2 border-card" />
             )}
           </div>
           
           <div className="flex-1">
-            <h3 className="font-semibold">{user.name}</h3>
-            <p className="text-xs text-muted-foreground">{user.online ? 'в сети' : 'не в сети'}</p>
+            <h3 className="font-semibold">{selectedChat.username}</h3>
+            <p className="text-xs text-muted-foreground">{selectedChat.online ? 'в сети' : 'не в сети'}</p>
           </div>
           
           <div className="flex gap-2">
@@ -172,25 +466,36 @@ export default function Index() {
 
         <ScrollArea className="flex-1 p-4 bg-gradient-to-b from-background to-muted/20">
           <div className="space-y-4">
-            {messages.filter(m => m.userId === selectedUserId).map((message) => (
-              <div 
-                key={message.id}
-                className={`flex ${message.isMine ? 'justify-end' : 'justify-start'} animate-fade-in`}
-              >
-                <div className={`max-w-[70%] ${message.isMine ? 'order-2' : 'order-1'}`}>
-                  <div className={`rounded-2xl p-4 ${
-                    message.isMine 
-                      ? 'gradient-purple-cyan text-white' 
-                      : 'bg-card border border-border'
-                  }`}>
-                    <p>{message.text}</p>
+            {messages.map((message) => {
+              const isMine = message.sender_id === currentUser.id;
+              return (
+                <div 
+                  key={message.id}
+                  className={`flex ${isMine ? 'justify-end' : 'justify-start'} animate-fade-in`}
+                >
+                  <div className={`max-w-[70%] ${isMine ? 'order-2' : 'order-1'}`}>
+                    <div className={`rounded-2xl p-4 ${
+                      isMine 
+                        ? 'gradient-purple-cyan text-white' 
+                        : 'bg-card border border-border'
+                    }`}>
+                      {message.is_voice ? (
+                        <div className="flex items-center gap-3">
+                          <Icon name="Mic" size={20} />
+                          <audio controls src={message.voice_url} className="max-w-full" />
+                          <span className="text-sm">{message.voice_duration}s</span>
+                        </div>
+                      ) : (
+                        <p>{message.message_text}</p>
+                      )}
+                    </div>
+                    <p className={`text-xs text-muted-foreground mt-1 ${isMine ? 'text-right' : 'text-left'}`}>
+                      {formatTime(message.created_at)}
+                    </p>
                   </div>
-                  <p className={`text-xs text-muted-foreground mt-1 ${message.isMine ? 'text-right' : 'text-left'}`}>
-                    {message.time}
-                  </p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </ScrollArea>
 
@@ -199,146 +504,126 @@ export default function Index() {
             <Button variant="ghost" size="icon" className="hover:bg-muted">
               <Icon name="Paperclip" size={20} />
             </Button>
-            <Input 
-              placeholder="Сообщение..."
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              className="flex-1 bg-muted/50 border-border"
-            />
-            <Button 
-              size="icon"
-              className="gradient-purple-cyan hover:opacity-90 text-white"
-              disabled={!messageText.trim()}
-            >
-              <Icon name="Send" size={20} />
-            </Button>
+            {!isRecording ? (
+              <>
+                <Input 
+                  placeholder="Сообщение..."
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                  className="flex-1 bg-muted/50 border-border"
+                />
+                <Button 
+                  size="icon"
+                  onClick={sendMessage}
+                  className="gradient-purple-cyan hover:opacity-90 text-white"
+                  disabled={!messageText.trim()}
+                >
+                  <Icon name="Send" size={20} />
+                </Button>
+                <Button 
+                  size="icon"
+                  onClick={startRecording}
+                  className="gradient-purple-pink hover:opacity-90 text-white"
+                >
+                  <Icon name="Mic" size={20} />
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="flex-1 flex items-center gap-3 px-4 bg-muted/50 rounded-lg">
+                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                  <span className="font-mono">{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}</span>
+                  <span className="text-muted-foreground">Запись голосового...</span>
+                </div>
+                <Button 
+                  size="icon"
+                  onClick={stopRecording}
+                  className="gradient-purple-cyan hover:opacity-90 text-white"
+                >
+                  <Icon name="Check" size={20} />
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
     );
   };
 
-  const ContactsScreen = () => (
-    <div className="space-y-2 animate-fade-in">
-      <Button className="w-full gradient-blue-cyan hover:opacity-90 text-white mb-4 h-12 font-semibold">
-        <Icon name="UserPlus" size={20} className="mr-2" />
-        Добавить контакт
-      </Button>
-      
-      {users.map((user) => (
-        <Card 
-          key={user.id}
-          className="p-4 hover:bg-muted/50 cursor-pointer transition-all duration-300 hover:scale-[1.01] border-border/50"
-        >
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Avatar className="w-12 h-12 border-2 border-primary/20">
-                <AvatarFallback className="gradient-purple-cyan text-white font-semibold">
-                  {user.avatar}
-                </AvatarFallback>
-              </Avatar>
-              {user.online && (
-                <div className="absolute bottom-0 right-0 w-3 h-3 bg-secondary rounded-full border-2 border-card" />
-              )}
-            </div>
-            
-            <div className="flex-1">
-              <h3 className="font-semibold">{user.name}</h3>
-              <p className="text-sm text-muted-foreground">{user.online ? 'в сети' : 'не в сети'}</p>
-            </div>
-            
-            <Button 
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setSelectedUserId(user.id);
-                setScreen('chat');
-              }}
-              className="border-primary/50 hover:bg-primary/10"
-            >
-              <Icon name="MessageCircle" size={16} className="mr-2" />
-              Написать
-            </Button>
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
+  const SearchScreen = () => {
+    const [allUsers, setAllUsers] = useState<User[]>([]);
 
-  const GroupsScreen = () => (
-    <div className="space-y-2 animate-fade-in">
-      <Button className="w-full gradient-purple-pink hover:opacity-90 text-white mb-4 h-12 font-semibold">
-        <Icon name="Users" size={20} className="mr-2" />
-        Создать группу
-      </Button>
+    useEffect(() => {
+      const loadAllUsers = async () => {
+        try {
+          const response = await fetch(`${API_MESSAGES}?action=get_all_users`);
+          if (response.ok) {
+            const data = await response.json();
+            setAllUsers(data.users || []);
+          }
+        } catch (error) {
+          console.error('Error loading users');
+        }
+      };
       
-      {groups.map((group) => (
-        <Card 
-          key={group.id}
-          className="p-4 hover:bg-muted/50 cursor-pointer transition-all duration-300 hover:scale-[1.01] border-border/50"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-2xl">
-              {group.avatar}
-            </div>
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-center mb-1">
-                <h3 className="font-semibold truncate">{group.name}</h3>
-                <span className="text-xs text-muted-foreground">{group.time}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">{group.members} участников</span>
-                <span className="text-muted-foreground">•</span>
-                <p className="text-sm text-muted-foreground truncate flex-1">{group.lastMessage}</p>
-              </div>
-            </div>
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
+      if (screen === 'search') {
+        loadAllUsers();
+      }
+    }, [screen]);
 
-  const SearchScreen = () => (
-    <div className="space-y-4 animate-fade-in">
-      <div className="relative">
-        <Icon name="Search" size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input 
-          placeholder="Искать людей, группы..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10 h-12 bg-muted/50 border-border"
-        />
-      </div>
-      
-      {searchQuery && (
-        <div className="space-y-2">
-          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide px-2">Результаты</h3>
-          {users.filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase())).map((user) => (
-            <Card 
-              key={user.id}
-              className="p-4 hover:bg-muted/50 cursor-pointer transition-all duration-300 hover:scale-[1.01] border-border/50"
-            >
-              <div className="flex items-center gap-4">
-                <Avatar className="w-12 h-12 border-2 border-primary/20">
-                  <AvatarFallback className="gradient-purple-cyan text-white font-semibold">
-                    {user.avatar}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <h3 className="font-semibold">{user.name}</h3>
-                  <p className="text-sm text-muted-foreground">{user.online ? 'в сети' : 'не в сети'}</p>
-                </div>
-                <Button size="sm" className="gradient-purple-cyan hover:opacity-90 text-white">
-                  Добавить
-                </Button>
-              </div>
-            </Card>
-          ))}
+    const filteredUsers = allUsers.filter(u => 
+      u.username.toLowerCase().includes(searchQuery.toLowerCase()) && u.id !== currentUser?.id
+    );
+
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <div className="relative">
+          <Icon name="Search" size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input 
+            placeholder="Искать людей, группы..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 h-12 bg-muted/50 border-border"
+          />
         </div>
-      )}
-    </div>
-  );
+        
+        {searchQuery && (
+          <div className="space-y-2">
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide px-2">Результаты</h3>
+            {filteredUsers.map((user) => (
+              <Card 
+                key={user.id}
+                className="p-4 hover:bg-muted/50 cursor-pointer transition-all duration-300 hover:scale-[1.01] border-border/50"
+              >
+                <div className="flex items-center gap-4">
+                  <Avatar className="w-12 h-12 border-2 border-primary/20">
+                    <AvatarFallback className="gradient-purple-cyan text-white font-semibold">
+                      {user.avatar_initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <h3 className="font-semibold">{user.username}</h3>
+                    <p className="text-sm text-muted-foreground">{user.online ? 'в сети' : 'не в сети'}</p>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    onClick={() => {
+                      setSelectedUserId(user.id);
+                      setScreen('chat');
+                    }}
+                    className="gradient-purple-cyan hover:opacity-90 text-white"
+                  >
+                    Написать
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const ProfileScreen = () => (
     <div className="space-y-6 animate-fade-in">
@@ -346,51 +631,23 @@ export default function Index() {
         <div className="flex flex-col items-center text-center">
           <Avatar className="w-24 h-24 border-4 border-primary/20 mb-4">
             <AvatarFallback className="gradient-purple-cyan text-white text-3xl font-bold">
-              ВП
+              {currentUser?.avatar_initials}
             </AvatarFallback>
           </Avatar>
-          <h2 className="text-2xl font-bold mb-1">Вы</h2>
-          <p className="text-muted-foreground mb-4">+7 (900) 123-45-67</p>
-          <Button variant="outline" className="border-primary/50 hover:bg-primary/10">
-            <Icon name="Edit" size={16} className="mr-2" />
-            Редактировать профиль
+          <h2 className="text-2xl font-bold mb-1">{currentUser?.username}</h2>
+          <p className="text-muted-foreground mb-4">{currentUser?.email || currentUser?.phone || 'Не указано'}</p>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setCurrentUser(null);
+              setScreen('auth');
+              toast({ title: 'Вы вышли из аккаунта' });
+            }}
+            className="border-primary/50 hover:bg-primary/10"
+          >
+            <Icon name="LogOut" size={16} className="mr-2" />
+            Выйти
           </Button>
-        </div>
-      </Card>
-
-      <Card className="p-4 border-border/50">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
-            <div className="flex items-center gap-3">
-              <Icon name="Bell" size={20} className="text-primary" />
-              <span>Уведомления</span>
-            </div>
-            <Icon name="ChevronRight" size={20} className="text-muted-foreground" />
-          </div>
-          
-          <div className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
-            <div className="flex items-center gap-3">
-              <Icon name="Lock" size={20} className="text-primary" />
-              <span>Приватность</span>
-            </div>
-            <Icon name="ChevronRight" size={20} className="text-muted-foreground" />
-          </div>
-          
-          <div className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
-            <div className="flex items-center gap-3">
-              <Icon name="Palette" size={20} className="text-primary" />
-              <span>Оформление</span>
-            </div>
-            <Icon name="ChevronRight" size={20} className="text-muted-foreground" />
-          </div>
-          
-          <div className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
-            <div className="flex items-center gap-3">
-              <Icon name="HelpCircle" size={20} className="text-primary" />
-              <span>Помощь</span>
-            </div>
-            <Icon name="ChevronRight" size={20} className="text-muted-foreground" />
-          </div>
         </div>
       </Card>
     </div>
@@ -398,6 +655,7 @@ export default function Index() {
 
   const renderScreen = () => {
     if (screen === 'auth') return <AuthScreen />;
+    if (screen === 'register') return <RegisterScreen />;
     if (screen === 'chat') return <ChatScreen />;
     
     return (
@@ -407,47 +665,34 @@ export default function Index() {
             <h1 className="text-3xl font-bold text-gradient">Максограм</h1>
           </div>
 
-          <div className="grid grid-cols-5 gap-2 mb-6">
+          <div className="grid grid-cols-3 gap-2 mb-6">
             <Button 
               variant={screen === 'chats' ? 'default' : 'outline'}
               onClick={() => setScreen('chats')}
               className={screen === 'chats' ? 'gradient-purple-cyan text-white' : 'border-border hover:bg-muted/50'}
             >
-              <Icon name="MessageCircle" size={18} />
-            </Button>
-            <Button 
-              variant={screen === 'contacts' ? 'default' : 'outline'}
-              onClick={() => setScreen('contacts')}
-              className={screen === 'contacts' ? 'gradient-purple-cyan text-white' : 'border-border hover:bg-muted/50'}
-            >
-              <Icon name="Users" size={18} />
-            </Button>
-            <Button 
-              variant={screen === 'groups' ? 'default' : 'outline'}
-              onClick={() => setScreen('groups')}
-              className={screen === 'groups' ? 'gradient-purple-cyan text-white' : 'border-border hover:bg-muted/50'}
-            >
-              <Icon name="UsersRound" size={18} />
+              <Icon name="MessageCircle" size={18} className="mr-2" />
+              Чаты
             </Button>
             <Button 
               variant={screen === 'search' ? 'default' : 'outline'}
               onClick={() => setScreen('search')}
               className={screen === 'search' ? 'gradient-purple-cyan text-white' : 'border-border hover:bg-muted/50'}
             >
-              <Icon name="Search" size={18} />
+              <Icon name="Search" size={18} className="mr-2" />
+              Поиск
             </Button>
             <Button 
               variant={screen === 'profile' ? 'default' : 'outline'}
               onClick={() => setScreen('profile')}
               className={screen === 'profile' ? 'gradient-purple-cyan text-white' : 'border-border hover:bg-muted/50'}
             >
-              <Icon name="User" size={18} />
+              <Icon name="User" size={18} className="mr-2" />
+              Профиль
             </Button>
           </div>
 
           {screen === 'chats' && <ChatsList />}
-          {screen === 'contacts' && <ContactsScreen />}
-          {screen === 'groups' && <GroupsScreen />}
           {screen === 'search' && <SearchScreen />}
           {screen === 'profile' && <ProfileScreen />}
         </div>

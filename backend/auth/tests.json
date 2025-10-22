@@ -1,0 +1,41 @@
+{
+  "tests": [
+    {
+      "name": "Register new user",
+      "method": "POST",
+      "body": {
+        "action": "register",
+        "username": "Test User",
+        "email": "test@example.com",
+        "password": "password123"
+      },
+      "expectedStatus": 201,
+      "expectedBody": {
+        "message": "string",
+        "user": {
+          "id": "number",
+          "username": "string"
+        }
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Login with correct credentials",
+      "method": "POST",
+      "body": {
+        "action": "login",
+        "username": "Test User",
+        "password": "password123"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "message": "string",
+        "user": {
+          "id": "number",
+          "username": "string"
+        }
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
