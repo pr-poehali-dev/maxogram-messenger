@@ -58,6 +58,7 @@ export default function Index() {
   const [recordingTime, setRecordingTime] = useState(0);
   
   const [authForm, setAuthForm] = useState({ username: '', email: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -292,13 +293,24 @@ export default function Index() {
             value={authForm.username}
             onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })}
           />
-          <Input 
-            placeholder="Пароль" 
-            type="password" 
-            className="h-12 bg-muted/50 border-border"
-            value={authForm.password}
-            onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-          />
+          <div className="relative">
+            <Input 
+              placeholder="Пароль" 
+              type={showPassword ? "text" : "password"}
+              className="h-12 bg-muted/50 border-border pr-12"
+              value={authForm.password}
+              onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 hover:bg-transparent"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              <Icon name={showPassword ? "EyeOff" : "Eye"} size={20} className="text-muted-foreground" />
+            </Button>
+          </div>
           
           <Button 
             onClick={handleLogin}
@@ -344,13 +356,24 @@ export default function Index() {
             value={authForm.email}
             onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
           />
-          <Input 
-            placeholder="Пароль" 
-            type="password" 
-            className="h-12 bg-muted/50 border-border"
-            value={authForm.password}
-            onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-          />
+          <div className="relative">
+            <Input 
+              placeholder="Пароль" 
+              type={showPassword ? "text" : "password"}
+              className="h-12 bg-muted/50 border-border pr-12"
+              value={authForm.password}
+              onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 hover:bg-transparent"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              <Icon name={showPassword ? "EyeOff" : "Eye"} size={20} className="text-muted-foreground" />
+            </Button>
+          </div>
           
           <Button 
             onClick={handleRegister}
@@ -653,8 +676,8 @@ export default function Index() {
     </div>
   );
 
-  const authScreen = useMemo(() => <AuthScreen />, [authForm]);
-  const registerScreen = useMemo(() => <RegisterScreen />, [authForm]);
+  const authScreen = useMemo(() => <AuthScreen />, [authForm, showPassword]);
+  const registerScreen = useMemo(() => <RegisterScreen />, [authForm, showPassword]);
   const chatScreen = useMemo(() => <ChatScreen />, [selectedUserId, messages, messageText, isRecording, recordingTime]);
 
   const renderScreen = () => {
