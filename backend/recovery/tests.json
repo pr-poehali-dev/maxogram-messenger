@@ -1,0 +1,15 @@
+{
+  "tests": [
+    {
+      "name": "Request recovery code",
+      "method": "POST",
+      "body": {
+        "action": "request_code",
+        "username": "test_user"
+      },
+      "expectedStatus": 404,
+      "expectedBody": {},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

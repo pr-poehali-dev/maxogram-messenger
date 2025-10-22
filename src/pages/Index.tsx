@@ -11,6 +11,7 @@ import Icon from '@/components/ui/icon';
 const API_AUTH = 'https://functions.poehali.dev/7d91b22d-765f-4e87-a2d6-5521016e62af';
 const API_MESSAGES = 'https://functions.poehali.dev/65694831-a2ba-48f5-be3b-29ec9666d002';
 const API_PROFILE = 'https://functions.poehali.dev/725bd01e-9bdf-451d-ab23-bf01e7c91a91';
+const API_RECOVERY = 'https://functions.poehali.dev/2f4e28f1-aeb2-42dd-9ebf-2ea351187b62';
 
 interface User {
   id: number;
@@ -48,7 +49,7 @@ interface Message {
   sender_avatar: string;
 }
 
-type Screen = 'auth' | 'register' | 'chats' | 'chat' | 'contacts' | 'groups' | 'profile' | 'search' | 'settings';
+type Screen = 'auth' | 'register' | 'chats' | 'chat' | 'contacts' | 'groups' | 'profile' | 'search' | 'settings' | 'recovery';
 
 export default function Index() {
   const [screen, setScreen] = useState<Screen>('auth');
@@ -68,6 +69,23 @@ export default function Index() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('maxogram_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      setCurrentUser(user);
+      setScreen('chats');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('maxogram_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('maxogram_user');
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     if (currentUser && screen === 'chats') {
@@ -328,13 +346,22 @@ export default function Index() {
             Войти
           </Button>
           
-          <Button 
-            variant="outline" 
-            onClick={() => setScreen('register')}
-            className="w-full h-12 border-primary/50 hover:bg-primary/10"
-          >
-            Создать аккаунт
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setScreen('register')}
+              className="flex-1 h-12 border-primary/50 hover:bg-primary/10"
+            >
+              Создать аккаунт
+            </Button>
+            <Button 
+              variant="ghost" 
+              onClick={() => setScreen('recovery')}
+              className="flex-1 h-12 text-muted-foreground hover:text-foreground"
+            >
+              Забыл пароль
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
@@ -391,13 +418,22 @@ export default function Index() {
             Зарегистрироваться
           </Button>
           
-          <Button 
-            variant="outline" 
-            onClick={() => setScreen('auth')}
-            className="w-full h-12 border-primary/50 hover:bg-primary/10"
-          >
-            Уже есть аккаунт
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setScreen('auth')}
+              className="flex-1 h-12 border-primary/50 hover:bg-primary/10"
+            >
+              Уже есть аккаунт
+            </Button>
+            <Button 
+              variant="ghost" 
+              onClick={() => setScreen('recovery')}
+              className="flex-1 h-12 text-muted-foreground hover:text-foreground"
+            >
+              Забыл пароль
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
@@ -418,11 +454,11 @@ export default function Index() {
               setSelectedUserId(chat.id);
               setScreen('chat');
             }}
-            className="p-4 hover:bg-muted/50 cursor-pointer transition-all duration-300 hover:scale-[1.01] hover:shadow-lg border-border/50"
+            className="p-3 sm:p-4 hover:bg-muted/50 cursor-pointer transition-all duration-300 hover:scale-[1.01] hover:shadow-lg border-border/50"
           >
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               <div className="relative">
-                <Avatar className="w-14 h-14 border-2 border-primary/20">
+                <Avatar className="w-12 h-12 sm:w-14 sm:h-14 border-2 border-primary/20">
                   <AvatarFallback className="gradient-purple-cyan text-white font-semibold">
                     {chat.avatar_initials}
                   </AvatarFallback>
@@ -434,10 +470,10 @@ export default function Index() {
               
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-1">
-                  <h3 className="font-semibold truncate">{chat.username}</h3>
-                  <span className="text-xs text-muted-foreground">{formatTime(chat.last_message_time)}</span>
+                  <h3 className="text-sm sm:text-base font-semibold truncate">{chat.username}</h3>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">{formatTime(chat.last_message_time)}</span>
                 </div>
-                <p className="text-sm text-muted-foreground truncate">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   {chat.last_message_is_voice ? '🎤 Голосовое сообщение' : chat.last_message}
                 </p>
               </div>
@@ -460,7 +496,7 @@ export default function Index() {
 
     return (
       <div className="flex flex-col h-screen animate-slide-in-right">
-        <div className="bg-card border-b border-border p-4 flex items-center gap-4">
+        <div className="bg-card border-b border-border p-2 sm:p-4 flex items-center gap-2 sm:gap-4">
           <Button 
             variant="ghost" 
             size="icon"
@@ -531,9 +567,9 @@ export default function Index() {
           </div>
         </ScrollArea>
 
-        <div className="p-4 bg-card border-t border-border">
-          <div className="flex gap-2">
-            <Button variant="ghost" size="icon" className="hover:bg-muted">
+        <div className="p-2 sm:p-4 bg-card border-t border-border">
+          <div className="flex gap-1 sm:gap-2">
+            <Button variant="ghost" size="icon" className="hover:bg-muted hidden sm:flex">
               <Icon name="Paperclip" size={20} />
             </Button>
             {!isRecording ? (
@@ -543,22 +579,22 @@ export default function Index() {
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                  className="flex-1 bg-muted/50 border-border"
+                  className="flex-1 bg-muted/50 border-border text-sm sm:text-base h-9 sm:h-10"
                 />
                 <Button 
                   size="icon"
                   onClick={sendMessage}
-                  className="gradient-purple-cyan hover:opacity-90 text-white"
+                  className="gradient-purple-cyan hover:opacity-90 text-white h-9 w-9 sm:h-10 sm:w-10"
                   disabled={!messageText.trim()}
                 >
-                  <Icon name="Send" size={20} />
+                  <Icon name="Send" size={18} />
                 </Button>
                 <Button 
                   size="icon"
                   onClick={startRecording}
-                  className="gradient-purple-pink hover:opacity-90 text-white"
+                  className="gradient-purple-pink hover:opacity-90 text-white h-9 w-9 sm:h-10 sm:w-10"
                 >
-                  <Icon name="Mic" size={20} />
+                  <Icon name="Mic" size={18} />
                 </Button>
               </>
             ) : (
@@ -866,6 +902,141 @@ export default function Index() {
     );
   };
 
+  const RecoveryScreen = () => {
+    const [step, setStep] = useState<'request' | 'reset'>('request');
+    const [recoveryForm, setRecoveryForm] = useState({ username: '', code: '', newPassword: '' });
+
+    const handleRequestCode = async () => {
+      if (!recoveryForm.username) {
+        toast({ title: 'Ошибка', description: 'Укажите имя пользователя', variant: 'destructive' });
+        return;
+      }
+
+      try {
+        const response = await fetch(API_RECOVERY, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'request_code',
+            username: recoveryForm.username
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          toast({ title: 'Успешно', description: data.message });
+          setStep('reset');
+        } else {
+          toast({ title: 'Ошибка', description: data.error, variant: 'destructive' });
+        }
+      } catch (error) {
+        toast({ title: 'Ошибка', description: 'Не удалось отправить код', variant: 'destructive' });
+      }
+    };
+
+    const handleResetPassword = async () => {
+      if (!recoveryForm.code || !recoveryForm.newPassword) {
+        toast({ title: 'Ошибка', description: 'Заполните все поля', variant: 'destructive' });
+        return;
+      }
+
+      try {
+        const response = await fetch(API_RECOVERY, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'reset_password',
+            username: recoveryForm.username,
+            code: recoveryForm.code,
+            new_password: recoveryForm.newPassword
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          toast({ title: 'Успешно', description: data.message });
+          setScreen('auth');
+        } else {
+          toast({ title: 'Ошибка', description: data.error, variant: 'destructive' });
+        }
+      } catch (error) {
+        toast({ title: 'Ошибка', description: 'Не удалось сбросить пароль', variant: 'destructive' });
+      }
+    };
+
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-muted to-background">
+        <Card className="w-full max-w-md p-8 bg-card/80 backdrop-blur-xl border-border/50 shadow-2xl">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full gradient-purple-cyan flex items-center justify-center">
+              <Icon name="KeyRound" size={40} className="text-white" />
+            </div>
+            <h1 className="text-3xl font-bold mb-2">Восстановление пароля</h1>
+            <p className="text-muted-foreground">
+              {
+                step === 'request' 
+                  ? 'Код придет в чат с Максограм'
+                  : 'Введите код из чата'
+              }
+            </p>
+          </div>
+          
+          <div className="space-y-4">
+            {step === 'request' ? (
+              <>
+                <Input 
+                  placeholder="Имя пользователя" 
+                  className="h-12 bg-muted/50 border-border"
+                  value={recoveryForm.username}
+                  onChange={(e) => setRecoveryForm({ ...recoveryForm, username: e.target.value })}
+                />
+                <Button 
+                  onClick={handleRequestCode}
+                  className="w-full h-12 gradient-purple-cyan hover:opacity-90 font-semibold text-white"
+                >
+                  Получить код
+                </Button>
+              </>
+            ) : (
+              <>
+                <Input 
+                  placeholder="Код из чата (6 цифр)" 
+                  className="h-12 bg-muted/50 border-border text-center text-2xl tracking-widest"
+                  value={recoveryForm.code}
+                  onChange={(e) => setRecoveryForm({ ...recoveryForm, code: e.target.value })}
+                  maxLength={6}
+                />
+                <Input 
+                  placeholder="Новый пароль" 
+                  type="password"
+                  className="h-12 bg-muted/50 border-border"
+                  value={recoveryForm.newPassword}
+                  onChange={(e) => setRecoveryForm({ ...recoveryForm, newPassword: e.target.value })}
+                />
+                <Button 
+                  onClick={handleResetPassword}
+                  className="w-full h-12 gradient-purple-cyan hover:opacity-90 font-semibold text-white"
+                >
+                  Сбросить пароль
+                </Button>
+              </>
+            )}
+            
+            <Button 
+              variant="outline" 
+              onClick={() => setScreen('auth')}
+              className="w-full h-12 border-primary/50 hover:bg-primary/10"
+            >
+              Назад ко входу
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
   const authScreen = useMemo(() => <AuthScreen />, [authForm, showPassword]);
   const registerScreen = useMemo(() => <RegisterScreen />, [authForm, showPassword]);
   const chatScreen = useMemo(() => <ChatScreen />, [selectedUserId, messages, messageText, isRecording, recordingTime]);
@@ -875,38 +1046,39 @@ export default function Index() {
     if (screen === 'register') return registerScreen;
     if (screen === 'chat') return chatScreen;
     if (screen === 'settings') return <SettingsScreen />;
+    if (screen === 'recovery') return <RecoveryScreen />;
     
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
-        <div className="max-w-4xl mx-auto p-4">
-          <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gradient">Максограм</h1>
+        <div className="max-w-4xl mx-auto p-2 sm:p-4">
+          <div className="mb-4 sm:mb-6 flex items-center justify-between">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gradient">Максограм</h1>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mb-6">
+          <div className="grid grid-cols-3 gap-1 sm:gap-2 mb-4 sm:mb-6">
             <Button 
               variant={screen === 'chats' ? 'default' : 'outline'}
               onClick={() => setScreen('chats')}
-              className={screen === 'chats' ? 'gradient-purple-cyan text-white' : 'border-border hover:bg-muted/50'}
+              className={`h-10 sm:h-12 text-xs sm:text-sm ${screen === 'chats' ? 'gradient-purple-cyan text-white' : 'border-border hover:bg-muted/50'}`}
             >
-              <Icon name="MessageCircle" size={18} className="mr-2" />
-              Чаты
+              <Icon name="MessageCircle" size={16} className="sm:mr-2" />
+              <span className="hidden sm:inline">Чаты</span>
             </Button>
             <Button 
               variant={screen === 'search' ? 'default' : 'outline'}
               onClick={() => setScreen('search')}
-              className={screen === 'search' ? 'gradient-purple-cyan text-white' : 'border-border hover:bg-muted/50'}
+              className={`h-10 sm:h-12 text-xs sm:text-sm ${screen === 'search' ? 'gradient-purple-cyan text-white' : 'border-border hover:bg-muted/50'}`}
             >
-              <Icon name="Search" size={18} className="mr-2" />
-              Поиск
+              <Icon name="Search" size={16} className="sm:mr-2" />
+              <span className="hidden sm:inline">Поиск</span>
             </Button>
             <Button 
               variant={screen === 'profile' ? 'default' : 'outline'}
               onClick={() => setScreen('profile')}
-              className={screen === 'profile' ? 'gradient-purple-cyan text-white' : 'border-border hover:bg-muted/50'}
+              className={`h-10 sm:h-12 text-xs sm:text-sm ${screen === 'profile' ? 'gradient-purple-cyan text-white' : 'border-border hover:bg-muted/50'}`}
             >
-              <Icon name="User" size={18} className="mr-2" />
-              Профиль
+              <Icon name="User" size={16} className="sm:mr-2" />
+              <span className="hidden sm:inline">Профиль</span>
             </Button>
           </div>
 
