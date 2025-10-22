@@ -276,7 +276,7 @@ export default function Index() {
 
   const AuthScreen = () => (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-muted to-background">
-      <Card className="w-full max-w-md p-8 bg-card/80 backdrop-blur-xl border-border/50 shadow-2xl animate-scale-in">
+      <Card className="w-full max-w-md p-8 bg-card/80 backdrop-blur-xl border-border/50 shadow-2xl">
         <div className="text-center mb-8">
           <div className="w-20 h-20 mx-auto mb-4 rounded-full gradient-purple-cyan flex items-center justify-center">
             <Icon name="MessageCircle" size={40} className="text-white" />
@@ -321,7 +321,7 @@ export default function Index() {
 
   const RegisterScreen = () => (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-muted to-background">
-      <Card className="w-full max-w-md p-8 bg-card/80 backdrop-blur-xl border-border/50 shadow-2xl animate-scale-in">
+      <Card className="w-full max-w-md p-8 bg-card/80 backdrop-blur-xl border-border/50 shadow-2xl">
         <div className="text-center mb-8">
           <div className="w-20 h-20 mx-auto mb-4 rounded-full gradient-purple-cyan flex items-center justify-center">
             <Icon name="UserPlus" size={40} className="text-white" />
