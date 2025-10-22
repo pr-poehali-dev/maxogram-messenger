@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -653,10 +653,14 @@ export default function Index() {
     </div>
   );
 
+  const authScreen = useMemo(() => <AuthScreen />, [authForm]);
+  const registerScreen = useMemo(() => <RegisterScreen />, [authForm]);
+  const chatScreen = useMemo(() => <ChatScreen />, [selectedUserId, messages, messageText, isRecording, recordingTime]);
+
   const renderScreen = () => {
-    if (screen === 'auth') return <AuthScreen />;
-    if (screen === 'register') return <RegisterScreen />;
-    if (screen === 'chat') return <ChatScreen />;
+    if (screen === 'auth') return authScreen;
+    if (screen === 'register') return registerScreen;
+    if (screen === 'chat') return chatScreen;
     
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
